@@ -1,0 +1,151 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: stock-trading-db
+    environment:
+      POSTGRES_USER: stock_user
+      POSTGRES_PASSWORD: stock_password
+      POSTGRES_DB: stock_trading
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - stock-trading-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stock_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: stock-trading-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - stock-trading-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Data Collector Service
+  data-collector:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.data_collector
+    container_name: data-collector
+    environment:
+      - DATABASE_URL=postgresql://stock_user:stock_password@postgres:5432/stock_trading
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+
+  # Indicator Calculator Service
+  indicator-calculator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.indicator_calculator
+    container_name: indicator-calculator
+    environment:
+      - DATABASE_URL=postgresql://stock_user:stock_password@postgres:5432/stock_trading
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+
+  # Stock Screener Service
+  stock-screener:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.stock_screener
+    container_name: stock-screener
+    environment:
+      - DATABASE_URL=postgresql://stock_user:stock_password@postgres:5432/stock_trading
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+
+  # Trading Engine Service
+  trading-engine:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.trading_engine
+    container_name: trading-engine
+    environment:
+      - DATABASE_URL=postgresql://stock_user:stock_password@postgres:5432/stock_trading
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8004:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+
+  # Risk Manager Service
+  risk-manager:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.risk_manager
+    container_name: risk-manager
+    environment:
+      - DATABASE_URL=postgresql://stock_user:stock_password@postgres:5432/stock_trading
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8005:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+
+networks:
+  stock-trading-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
