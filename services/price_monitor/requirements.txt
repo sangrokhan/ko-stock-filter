@@ -1,0 +1,7 @@
+# Price Monitor Service Requirements
+
+# Inherit from main requirements
+-r ../../requirements.txt
+
+# Additional service-specific requirements
+aiohttp==3.9.1

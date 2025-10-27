@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  price-monitor:
+    build:
+      context: ..
+      dockerfile: docker/price_monitor.Dockerfile
+    container_name: price-monitor
+    environment:
+      - PRICE_MONITOR_DATABASE_URL=postgresql://user:password@postgres:5432/stock_trading
+      - PRICE_MONITOR_REDIS_HOST=redis
+      - PRICE_MONITOR_REDIS_PORT=6379
+      - PRICE_MONITOR_POLL_INTERVAL_SECONDS=60
+      - PRICE_MONITOR_SIGNIFICANT_CHANGE_THRESHOLD=5.0
+      - PRICE_MONITOR_LOG_LEVEL=INFO
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    networks:
+      - stock-trading-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: stock-trading-postgres
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=stock_trading
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - stock-trading-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: stock-trading-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - stock-trading-network
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  stock-trading-network:
+    driver: bridge
