@@ -178,6 +178,71 @@ class FundamentalIndicator(Base):
     )
 
 
+class StabilityScore(Base):
+    """Stability score and risk metrics model."""
+    __tablename__ = "stability_scores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(DateTime, nullable=False, index=True, comment="Calculation date")
+
+    # Price Volatility Metrics
+    price_volatility = Column(Float, comment="Price volatility (std dev of returns)")
+    price_volatility_score = Column(Float, comment="Price volatility score (0-100, higher is more stable)")
+    returns_mean = Column(Float, comment="Mean of daily returns")
+    returns_std = Column(Float, comment="Standard deviation of daily returns")
+
+    # Beta Coefficient (Market Risk)
+    beta = Column(Float, comment="Beta coefficient (systematic risk vs market)")
+    beta_score = Column(Float, comment="Beta score (0-100, closer to 1.0 is more stable)")
+    market_correlation = Column(Float, comment="Correlation with market index")
+
+    # Volume Stability Metrics
+    volume_stability = Column(Float, comment="Volume stability (coefficient of variation)")
+    volume_stability_score = Column(Float, comment="Volume stability score (0-100)")
+    volume_mean = Column(BigInteger, comment="Mean trading volume")
+    volume_std = Column(BigInteger, comment="Standard deviation of trading volume")
+
+    # Earnings Consistency Metrics
+    earnings_consistency = Column(Float, comment="Earnings consistency (coefficient of variation)")
+    earnings_consistency_score = Column(Float, comment="Earnings consistency score (0-100)")
+    earnings_trend = Column(Float, comment="Earnings trend (slope)")
+
+    # Debt Stability Metrics
+    debt_stability = Column(Float, comment="Debt stability (trend analysis)")
+    debt_stability_score = Column(Float, comment="Debt stability score (0-100)")
+    debt_trend = Column(Float, comment="Debt ratio trend (slope)")
+    debt_ratio_current = Column(Float, comment="Current debt ratio")
+
+    # Overall Stability Score
+    stability_score = Column(Float, nullable=False, index=True, comment="Overall stability score (0-100)")
+
+    # Component Weights (for transparency)
+    weight_price = Column(Float, default=0.25, comment="Weight of price volatility component")
+    weight_beta = Column(Float, default=0.20, comment="Weight of beta component")
+    weight_volume = Column(Float, default=0.15, comment="Weight of volume stability component")
+    weight_earnings = Column(Float, default=0.25, comment="Weight of earnings consistency component")
+    weight_debt = Column(Float, default=0.15, comment="Weight of debt stability component")
+
+    # Data Quality Indicators
+    data_points_price = Column(Integer, comment="Number of price data points used")
+    data_points_earnings = Column(Integer, comment="Number of earnings data points used")
+    data_points_debt = Column(Integer, comment="Number of debt data points used")
+    calculation_period_days = Column(Integer, comment="Period used for calculation in days")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    stock = relationship("Stock", backref="stability_scores")
+
+    # Composite indexes
+    __table_args__ = (
+        Index('ix_stability_scores_stock_date', 'stock_id', 'date'),
+        Index('ix_stability_scores_score', 'stability_score'),
+    )
+
+
 class Trade(Base):
     """Trade execution model (trade_history)."""
     __tablename__ = "trades"
