@@ -18,6 +18,13 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from shared.database.connection import get_db, SessionLocal
 from shared.database.models import Portfolio, Trade, PortfolioRiskMetrics
 
+try:
+    from services.risk_manager.position_sizing import PositionSizer, PositionSizingMethod
+    from services.risk_manager.position_monitor import PositionMonitor
+except ImportError:
+    from position_sizing import PositionSizer, PositionSizingMethod
+    from position_monitor import PositionMonitor
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -81,13 +88,33 @@ class RiskManagerService:
             max_drawdown=20.0,
             stop_loss_pct=5.0,
             max_leverage=1.0,
-            max_total_loss=30.0  # 30% maximum loss limit
+            max_total_loss=28.0  # 28% maximum loss limit (emergency liquidation threshold)
         )
+
+        # Initialize position sizer with Kelly Criterion
+        self.position_sizer = PositionSizer(
+            default_method=PositionSizingMethod.KELLY_HALF,  # Conservative half-Kelly by default
+            max_position_size_pct=self.risk_params.max_position_size,
+            default_fixed_pct=5.0,
+            default_risk_pct=self.risk_params.max_portfolio_risk
+        )
+
+        # Initialize position monitor
+        self.position_monitor = PositionMonitor(
+            check_stop_loss=True,
+            check_trailing_stop=True,
+            check_take_profit=True,
+            check_emergency_liquidation=True,
+            emergency_liquidation_threshold=self.risk_params.max_total_loss
+        )
+
         logger.info("Risk Manager Service initialized with parameters:")
         logger.info(f"  Max Position Size: {self.risk_params.max_position_size}%")
         logger.info(f"  Max Portfolio Risk: {self.risk_params.max_portfolio_risk}%")
         logger.info(f"  Max Drawdown: {self.risk_params.max_drawdown}%")
         logger.info(f"  Max Total Loss: {self.risk_params.max_total_loss}%")
+        logger.info(f"  Position Sizing: {self.position_sizer.default_method.value}")
+        logger.info(f"  Stop-Loss: Individual -10%, Emergency {self.risk_params.max_total_loss}%")
 
     def start(self):
         """Start the risk manager service."""
@@ -471,33 +498,110 @@ class RiskManagerService:
             warnings=warnings
         )
 
-    def calculate_position_size(self, ticker: str, entry_price: float,
-                               stop_loss_price: float, portfolio_value: float) -> int:
+    def calculate_position_size(
+        self,
+        ticker: str,
+        entry_price: float,
+        stop_loss_price: float,
+        portfolio_value: float,
+        method: Optional[PositionSizingMethod] = None,
+        user_id: Optional[str] = None,
+        db: Optional[Session] = None
+    ) -> Dict:
         """
-        Calculate appropriate position size based on risk parameters.
+        Calculate appropriate position size based on risk parameters and historical performance.
+        Supports multiple methods including Kelly Criterion, fixed percent, and fixed risk.
 
         Args:
             ticker: Stock ticker
             entry_price: Entry price per share
             stop_loss_price: Stop loss price
             portfolio_value: Total portfolio value
+            method: Position sizing method (defaults to Kelly Half)
+            user_id: User identifier (for historical performance calculation)
+            db: Database session (for historical performance calculation)
 
         Returns:
-            Number of shares to buy
+            Dictionary with shares, position_value, position_pct, method, and notes
         """
         risk_per_share = abs(entry_price - stop_loss_price)
         if risk_per_share == 0:
             raise ValueError("Risk per share cannot be zero")
 
-        # Calculate based on max portfolio risk
-        max_risk_amount = portfolio_value * (self.risk_params.max_portfolio_risk / 100)
-        position_size = int(max_risk_amount / risk_per_share)
+        # Get historical performance for Kelly Criterion
+        win_rate = None
+        avg_win_pct = None
+        avg_loss_pct = None
 
-        # Cap by max position size
-        max_position_value = portfolio_value * (self.risk_params.max_position_size / 100)
-        max_shares = int(max_position_value / entry_price)
+        if user_id and db:
+            # Get executed trades for the user
+            trades = db.query(Trade).filter(
+                Trade.status == "EXECUTED"
+            ).all()
 
-        return min(position_size, max_shares)
+            if trades:
+                # Convert to format needed by position sizer
+                trade_data = []
+                for trade in trades:
+                    if trade.executed_price and trade.quantity:
+                        # Simple P&L calculation (this is approximate)
+                        # In a real system, you'd track entry/exit pairs
+                        if trade.action == "SELL":
+                            # Estimate P&L based on price movement
+                            pnl_pct = ((float(trade.executed_price) - float(trade.price or trade.executed_price)) /
+                                     float(trade.price or trade.executed_price) * 100)
+                            trade_data.append({'pnl_pct': pnl_pct})
+
+                if trade_data:
+                    perf = self.position_sizer.get_historical_performance(trade_data)
+                    win_rate = perf['win_rate']
+                    avg_win_pct = perf['avg_win_pct']
+                    avg_loss_pct = perf['avg_loss_pct']
+
+        # Calculate position size using the position sizer
+        try:
+            result = self.position_sizer.calculate_position_size(
+                portfolio_value=portfolio_value,
+                entry_price=entry_price,
+                stop_loss_price=stop_loss_price,
+                method=method,
+                win_rate=win_rate,
+                avg_win_pct=avg_win_pct,
+                avg_loss_pct=avg_loss_pct
+            )
+
+            logger.info(f"Position size calculated for {ticker}: "
+                       f"{result.shares} shares ({result.position_pct:.2f}%) "
+                       f"using {result.method}")
+
+            return {
+                'shares': result.shares,
+                'position_value': result.position_value,
+                'position_pct': result.position_pct,
+                'method': result.method,
+                'kelly_fraction': result.kelly_fraction,
+                'risk_amount': result.risk_amount,
+                'notes': result.notes
+            }
+
+        except Exception as e:
+            logger.error(f"Error calculating position size: {e}")
+            # Fallback to simple fixed risk calculation
+            max_risk_amount = portfolio_value * (self.risk_params.max_portfolio_risk / 100)
+            shares = int(max_risk_amount / risk_per_share)
+            max_position_value = portfolio_value * (self.risk_params.max_position_size / 100)
+            max_shares = int(max_position_value / entry_price)
+            shares = min(shares, max_shares)
+
+            return {
+                'shares': shares,
+                'position_value': shares * entry_price,
+                'position_pct': (shares * entry_price / portfolio_value * 100),
+                'method': 'Fixed Risk (Fallback)',
+                'kelly_fraction': None,
+                'risk_amount': max_risk_amount,
+                'notes': f'Fallback calculation due to error: {str(e)}'
+            }
 
     def check_portfolio_risk(self, user_id: str, db: Session) -> Dict:
         """

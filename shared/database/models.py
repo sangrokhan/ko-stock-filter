@@ -293,6 +293,18 @@ class Portfolio(Base):
     total_tax = Column(Integer, comment="Total tax paid")
     first_purchase_date = Column(DateTime, comment="Date of first purchase")
     last_transaction_date = Column(DateTime, comment="Date of last transaction")
+
+    # Stop-Loss and Take-Profit Fields
+    stop_loss_price = Column(Numeric(15, 2), comment="Stop-loss trigger price (absolute price)")
+    stop_loss_pct = Column(Float, default=10.0, comment="Stop-loss percentage from avg price (default -10%)")
+    trailing_stop_price = Column(Numeric(15, 2), comment="Trailing stop-loss price (moves up with profit)")
+    trailing_stop_enabled = Column(Boolean, default=True, comment="Whether trailing stop-loss is enabled")
+    trailing_stop_distance_pct = Column(Float, default=10.0, comment="Distance % for trailing stop from highest price")
+    highest_price_since_purchase = Column(Numeric(15, 2), comment="Highest price achieved since purchase (for trailing stop)")
+    take_profit_price = Column(Numeric(15, 2), comment="Take-profit trigger price (absolute price)")
+    take_profit_pct = Column(Float, default=20.0, comment="Take-profit percentage from avg price (default +20%)")
+    take_profit_use_technical = Column(Boolean, default=False, comment="Use technical signals for take-profit")
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
