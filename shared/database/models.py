@@ -485,3 +485,72 @@ class WatchlistHistory(Base):
         Index('ix_watchlist_history_date', 'date'),
         Index('ix_watchlist_history_performance', 'total_return_pct', 'annualized_return_pct'),
     )
+
+
+class PortfolioRiskMetrics(Base):
+    """Portfolio-level risk metrics and tracking model."""
+    __tablename__ = "portfolio_risk_metrics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(50), nullable=False, index=True, comment="User identifier")
+    date = Column(DateTime, nullable=False, index=True, comment="Calculation date")
+
+    # Portfolio Value Metrics
+    total_value = Column(BigInteger, nullable=False, comment="Total portfolio value in KRW")
+    cash_balance = Column(BigInteger, default=0, comment="Available cash balance in KRW")
+    invested_amount = Column(BigInteger, comment="Total invested amount (cost basis)")
+    peak_value = Column(BigInteger, comment="All-time peak portfolio value")
+    initial_capital = Column(BigInteger, comment="Initial capital at portfolio inception")
+
+    # P&L Metrics
+    total_pnl = Column(BigInteger, comment="Total P&L (realized + unrealized) in KRW")
+    total_pnl_pct = Column(Float, comment="Total P&L percentage")
+    realized_pnl = Column(BigInteger, comment="Total realized profit/loss")
+    unrealized_pnl = Column(BigInteger, comment="Total unrealized profit/loss")
+    daily_pnl = Column(BigInteger, comment="Daily profit/loss in KRW")
+    daily_pnl_pct = Column(Float, comment="Daily profit/loss percentage")
+
+    # Drawdown Metrics
+    current_drawdown = Column(Float, nullable=False, index=True, comment="Current drawdown from peak (%)")
+    max_drawdown = Column(Float, comment="Maximum drawdown experienced (%)")
+    drawdown_duration_days = Column(Integer, comment="Days since peak value")
+    is_at_peak = Column(Boolean, default=False, comment="Whether portfolio is at all-time high")
+
+    # Position Metrics
+    position_count = Column(Integer, comment="Number of open positions")
+    largest_position_pct = Column(Float, comment="Largest single position as % of portfolio")
+    largest_position_ticker = Column(String(20), comment="Ticker of largest position")
+    total_exposure_pct = Column(Float, comment="Total market exposure as % (invested/total value)")
+
+    # Loss Tracking
+    total_loss_from_initial = Column(BigInteger, comment="Total loss from initial capital in KRW")
+    total_loss_from_initial_pct = Column(Float, nullable=False, index=True, comment="Total loss % from initial capital")
+    total_loss_from_peak = Column(BigInteger, comment="Total loss from peak value in KRW")
+    total_loss_from_peak_pct = Column(Float, comment="Total loss % from peak value")
+
+    # Risk Limits Status
+    max_position_size_limit = Column(Float, default=10.0, comment="Max position size limit (%)")
+    max_loss_limit = Column(Float, default=30.0, comment="Max total loss limit (%)")
+    is_trading_halted = Column(Boolean, default=False, index=True, comment="Whether trading is halted due to loss limit")
+    trading_halt_reason = Column(Text, comment="Reason for trading halt")
+    trading_halt_timestamp = Column(DateTime, comment="When trading was halted")
+
+    # Violation Tracking
+    position_size_violations = Column(Integer, default=0, comment="Count of position size limit violations")
+    risk_warnings = Column(Text, comment="Active risk warnings")
+
+    # Performance Metrics
+    sharpe_ratio = Column(Float, comment="Sharpe ratio (if calculable)")
+    win_rate = Column(Float, comment="Win rate % (winning trades / total trades)")
+    profit_factor = Column(Float, comment="Profit factor (gross profit / gross loss)")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Composite indexes
+    __table_args__ = (
+        Index('ix_portfolio_risk_user_date', 'user_id', 'date'),
+        Index('ix_portfolio_risk_drawdown', 'current_drawdown'),
+        Index('ix_portfolio_risk_loss', 'total_loss_from_initial_pct'),
+        Index('ix_portfolio_risk_halted', 'is_trading_halted', 'user_id'),
+    )
