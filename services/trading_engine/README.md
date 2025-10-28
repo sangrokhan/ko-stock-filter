@@ -410,6 +410,294 @@ For issues and questions:
 - Verify database schema is up to date
 - Ensure all dependencies are installed
 
+---
+
+# Order Execution Module
+
+Comprehensive order execution system with paper trading capabilities for the Korean stock market.
+
+## Components
+
+### 1. **Broker Interface** (`broker_interface.py`)
+Abstract interface for broker integration that allows the system to work with different execution backends:
+- **Paper Trading** - Simulated execution for testing and backtesting
+- **Real Broker APIs** - Ready for integration with real brokers
+
+**Key Components:**
+- `OrderRequest` - Order submission details
+- `Order` - Order with full status tracking
+- `OrderExecution` - Individual execution records
+- `Position` - Current position information
+- `BrokerInterface` - Abstract base class for all broker implementations
+
+### 2. **Paper Trading Executor** (`paper_trading_executor.py`)
+Full-featured paper trading simulator with realistic market behavior:
+
+**Features:**
+- ✅ Realistic slippage simulation based on order size, volume, and volatility
+- ✅ Order status tracking (pending → submitted → accepted → filled)
+- ✅ Partial fills for large orders
+- ✅ Market and limit order support
+- ✅ Portfolio tracking and updates
+- ✅ Cash balance management
+- ✅ Database persistence
+
+**Slippage Model:**
+```python
+SlippageModel(
+    base_slippage_bps=5.0,       # Base 5 basis points
+    volume_impact_factor=0.5,     # Volume impact multiplier
+    volatility_impact_factor=0.3  # Volatility impact multiplier
+)
+```
+
+### 3. **Commission Calculator** (`commission_calculator.py`)
+Accurate Korean market fee calculation:
+
+**Fee Structure:**
+- **Commission**: 0.015% (configurable by broker)
+- **Transaction Tax**: 0.23% (sell only)
+- **Agricultural/Fisheries Tax**: 0.15% on transaction tax
+- Market-specific fees (KOSPI, KOSDAQ, KONEX)
+
+### 4. **Trade Logger** (`trade_logger.py`)
+Comprehensive logging system for all trading activities:
+- Order submission logging
+- Execution logging with detailed information
+- Cancellation and rejection tracking
+- Position open/close logging
+- Daily summary reports
+- CSV export functionality
+- Trade statistics and analytics
+
+## Order Execution Usage
+
+### Basic Market Order
+
+```python
+from services.trading_engine.paper_trading_executor import PaperTradingExecutor
+from services.trading_engine.broker_interface import OrderRequest, OrderSide, OrderType
+
+# Initialize executor
+executor = PaperTradingExecutor(
+    db=db_session,
+    user_id="trader_001",
+    initial_cash=10_000_000,  # 10M KRW
+    enable_slippage=True
+)
+
+# Create order request
+order_request = OrderRequest(
+    ticker="005930",           # Samsung Electronics
+    side=OrderSide.BUY,
+    order_type=OrderType.MARKET,
+    quantity=10,
+    notes="Buy Samsung"
+)
+
+# Submit order
+order = executor.submit_order(order_request)
+
+# Check status
+print(f"Order Status: {order.status.value}")
+print(f"Fill Price: {order.avg_fill_price:,.0f} KRW")
+```
+
+### Limit Order
+
+```python
+# Get current price
+current_price = executor.get_current_price("005930")
+
+# Submit limit buy order
+limit_order_request = OrderRequest(
+    ticker="005930",
+    side=OrderSide.BUY,
+    order_type=OrderType.LIMIT,
+    quantity=10,
+    limit_price=current_price * 0.98,  # 2% below market
+    time_in_force=TimeInForce.GTC
+)
+
+limit_order = executor.submit_order(limit_order_request)
+```
+
+### Calculate Commission and Fees
+
+```python
+from services.trading_engine.commission_calculator import CommissionCalculator, MarketType
+
+calc = CommissionCalculator(market_type=MarketType.KOSPI)
+
+# Calculate buy costs
+buy_costs = calc.calculate_buy_costs(quantity=10, price=70_000)
+print(f"Net Amount: {buy_costs.net_amount:,.0f} KRW")
+print(f"Commission: {buy_costs.commission:,.0f} KRW")
+
+# Calculate sell costs
+sell_costs = calc.calculate_sell_costs(quantity=10, price=75_000)
+print(f"Net Amount: {sell_costs.net_amount:,.0f} KRW")
+print(f"Total Fees: {sell_costs.total_fees:,.0f} KRW")
+
+# Calculate round trip
+round_trip = calc.calculate_round_trip_costs(
+    quantity=10,
+    buy_price=70_000,
+    sell_price=75_000
+)
+print(f"Net P&L: {round_trip['net_pnl']:,.0f} KRW ({round_trip['net_pnl_pct']:.2f}%)")
+print(f"Breakeven: {round_trip['breakeven_price']:,.0f} KRW")
+```
+
+### Trade Logging
+
+```python
+from services.trading_engine.trade_logger import TradeLogger
+
+# Initialize logger
+logger = TradeLogger(
+    db=db_session,
+    log_file_path="/var/log/trades.log",
+    enable_console_logging=True
+)
+
+# Log order events
+logger.log_order_submitted(order)
+logger.log_order_executed(order, execution)
+
+# Get statistics
+stats = logger.get_trade_statistics()
+print(f"Total Trades: {stats['total_trades']}")
+print(f"Total Commission: {stats['total_commission']:,.0f} KRW")
+
+# Export to CSV
+logger.export_trades_to_csv(
+    output_path="/tmp/trades.csv",
+    start_date=datetime(2025, 1, 1)
+)
+```
+
+## Order Execution Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Broker Interface                         │
+│                  (Abstract Base Class)                      │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+         ┌────────────┴────────────┬──────────────────┐
+         │                         │                   │
+         ▼                         ▼                   ▼
+┌──────────────────┐    ┌──────────────────┐   ┌─────────────┐
+│ Paper Trading    │    │ Real Broker API  │   │ Future      │
+│ Executor         │    │ (To Implement)   │   │ Integrations│
+└──────────────────┘    └──────────────────┘   └─────────────┘
+         │
+         ├─► Commission Calculator
+         ├─► Slippage Model
+         ├─► Trade Logger
+         └─► Portfolio Manager
+```
+
+## Order Status Flow
+
+```
+PENDING → SUBMITTED → ACCEPTED → FILLED
+                          ├─► PARTIALLY_FILLED → FILLED
+                          ├─► CANCELLED
+                          ├─► REJECTED
+                          └─► EXPIRED
+```
+
+## Slippage Simulation
+
+The slippage model simulates realistic price impact:
+
+1. **Base Slippage**: 5 basis points (0.05%)
+2. **Volume Impact**: Larger orders relative to daily volume incur more slippage
+3. **Volatility Impact**: Higher volatility increases slippage
+4. **Random Component**: ±20% variation for realism
+
+**Formula:**
+```
+slippage_bps = base_bps + (volume_ratio * 100 * volume_factor) + (volatility * volatility_factor)
+slippage_amount = price * (slippage_bps / 10000)
+```
+
+## Commission and Fee Structure
+
+### KOSPI/KOSDAQ
+- **Buy Commission**: 0.015%
+- **Sell Commission**: 0.015%
+- **Transaction Tax** (sell only): 0.23%
+- **Agri/Fish Tax** (on transaction tax): 0.15%
+
+### KONEX
+- **Buy Commission**: 0.015%
+- **Sell Commission**: 0.015%
+- **Transaction Tax** (sell only): 0.10% (lower than KOSPI/KOSDAQ)
+- **Agri/Fish Tax** (on transaction tax): 0.15%
+
+### Example Cost Breakdown
+
+**Buy 10 shares @ 70,000 KRW:**
+- Gross: 700,000 KRW
+- Commission: 105 KRW (0.015%)
+- Total: 700,105 KRW
+
+**Sell 10 shares @ 75,000 KRW:**
+- Gross: 750,000 KRW
+- Commission: 113 KRW (0.015%)
+- Transaction Tax: 1,725 KRW (0.23%)
+- Agri/Fish Tax: 259 KRW (15% of transaction tax)
+- Total Fees: 2,097 KRW
+- Net: 747,903 KRW
+
+**Round Trip P&L:**
+- Gross P&L: 50,000 KRW
+- Total Fees: 2,202 KRW
+- Net P&L: 47,798 KRW (6.83%)
+
+## Integration with Real Broker APIs
+
+To integrate with a real broker, implement the `BrokerInterface`:
+
+```python
+from services.trading_engine.broker_interface import BrokerInterface
+
+class RealBrokerExecutor(BrokerInterface):
+    def submit_order(self, order_request: OrderRequest) -> Order:
+        # Call real broker API
+        response = broker_api.submit_order(...)
+        # Convert response to Order object
+        return order
+
+    def cancel_order(self, order_id: str) -> bool:
+        # Call real broker API
+        return broker_api.cancel_order(order_id)
+
+    # Implement other required methods...
+```
+
+## Testing Order Execution
+
+Run the comprehensive example file:
+
+```bash
+cd /home/user/ko-stock-filter
+python examples/order_execution_example.py
+```
+
+This demonstrates:
+1. Basic market orders
+2. Limit orders
+3. Commission calculation
+4. Slippage simulation
+5. Trade logging and export
+6. Complete trading workflow
+
+---
+
 ## License
 
 Part of the Korean Stock Filter project.
