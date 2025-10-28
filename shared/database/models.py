@@ -397,10 +397,91 @@ class Watchlist(Base):
 
     # Relationships
     stock = relationship("Stock", back_populates="watchlist_entries")
+    history = relationship("WatchlistHistory", back_populates="watchlist", cascade="all, delete-orphan")
 
     # Composite indexes
     __table_args__ = (
         Index('ix_watchlist_user_ticker', 'user_id', 'ticker'),
         Index('ix_watchlist_user_score', 'user_id', 'score'),
         Index('ix_watchlist_user_added', 'user_id', 'added_date'),
+    )
+
+
+class WatchlistHistory(Base):
+    """Historical tracking of watchlist stocks' performance and scores."""
+    __tablename__ = "watchlist_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    watchlist_id = Column(Integer, ForeignKey("watchlist.id", ondelete="CASCADE"), nullable=False, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(DateTime, nullable=False, index=True, comment="Snapshot date")
+
+    # Price Information
+    price = Column(Numeric(15, 2), comment="Stock price at snapshot")
+    price_change_pct = Column(Float, comment="Price change % since added to watchlist")
+    price_change_amount = Column(Numeric(15, 2), comment="Price change amount since added")
+    target_price = Column(Numeric(15, 2), comment="Target price at this snapshot")
+    target_price_distance_pct = Column(Float, comment="Distance from target price (%)")
+
+    # Volume and Trading
+    volume = Column(BigInteger, comment="Trading volume")
+    trading_value = Column(BigInteger, comment="Trading value in KRW")
+
+    # Composite Scores (from CompositeScore table)
+    composite_score = Column(Float, comment="Overall composite score (0-100)")
+    value_score = Column(Float, comment="Value score (0-100)")
+    growth_score = Column(Float, comment="Growth score (0-100)")
+    quality_score = Column(Float, comment="Quality score (0-100)")
+    momentum_score = Column(Float, comment="Momentum score (0-100)")
+    percentile_rank = Column(Float, comment="Percentile rank among all stocks")
+
+    # Score Changes (compared to previous snapshot)
+    composite_score_change = Column(Float, comment="Change in composite score since last snapshot")
+    value_score_change = Column(Float, comment="Change in value score")
+    growth_score_change = Column(Float, comment="Change in growth score")
+    quality_score_change = Column(Float, comment="Change in quality score")
+    momentum_score_change = Column(Float, comment="Change in momentum score")
+
+    # Stability Score (from StabilityScore table)
+    stability_score = Column(Float, comment="Overall stability score (0-100)")
+    price_volatility = Column(Float, comment="Price volatility metric")
+    beta = Column(Float, comment="Beta coefficient")
+
+    # Key Fundamental Metrics
+    per = Column(Float, comment="Price to Earnings Ratio")
+    pbr = Column(Float, comment="Price to Book Ratio")
+    roe = Column(Float, comment="Return on Equity (%)")
+    debt_ratio = Column(Float, comment="Debt Ratio (%)")
+    dividend_yield = Column(Float, comment="Dividend Yield (%)")
+
+    # Technical Indicators
+    rsi_14 = Column(Float, comment="14-day RSI")
+    macd = Column(Float, comment="MACD value")
+    macd_histogram = Column(Float, comment="MACD histogram")
+
+    # Criteria Met Status
+    meets_criteria = Column(Boolean, comment="Whether stock still meets watchlist criteria")
+    criteria_violations = Column(Text, comment="List of criteria violations if any")
+
+    # Performance Metrics
+    days_on_watchlist = Column(Integer, comment="Number of days on watchlist")
+    total_return_pct = Column(Float, comment="Total return % since added")
+    annualized_return_pct = Column(Float, comment="Annualized return %")
+
+    # Metadata
+    snapshot_reason = Column(String(50), comment="Reason for snapshot: daily_update, manual, criteria_check")
+    notes = Column(Text, comment="Additional notes for this snapshot")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    watchlist = relationship("Watchlist", back_populates="history")
+    stock = relationship("Stock")
+
+    # Composite indexes for efficient queries
+    __table_args__ = (
+        Index('ix_watchlist_history_watchlist_date', 'watchlist_id', 'date'),
+        Index('ix_watchlist_history_stock_date', 'stock_id', 'date'),
+        Index('ix_watchlist_history_date', 'date'),
+        Index('ix_watchlist_history_performance', 'total_return_pct', 'annualized_return_pct'),
     )
