@@ -14,11 +14,12 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from shared.database.connection import get_db
 from services.risk_manager.main import RiskManagerService, RiskParameters
+from services.risk_manager.position_sizing import PositionSizingMethod
 
 app = FastAPI(
     title="Risk Manager Service API",
-    description="Portfolio risk monitoring and order validation service",
-    version="1.0.0"
+    description="Portfolio risk monitoring and order validation service with stop-loss and take-profit management",
+    version="2.0.0"
 )
 
 # Initialize risk manager service
@@ -396,32 +397,310 @@ async def calculate_position_size(
     ticker: str,
     entry_price: float,
     stop_loss_price: float,
-    portfolio_value: float
+    portfolio_value: float,
+    method: Optional[str] = "kelly_half",
+    user_id: Optional[str] = None,
+    db: Session = Depends(get_db)
 ):
     """
-    Calculate recommended position size based on risk parameters.
+    Calculate recommended position size based on risk parameters and method.
+    Supports Kelly Criterion, fixed percent, and fixed risk methods.
     """
     try:
-        shares = risk_manager.calculate_position_size(
-            ticker, entry_price, stop_loss_price, portfolio_value
-        )
+        # Convert method string to enum
+        try:
+            sizing_method = PositionSizingMethod(method) if method else None
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid method: {method}. Valid methods: kelly_criterion, kelly_half, kelly_quarter, fixed_percent, fixed_risk, volatility_adjusted"
+            )
 
-        position_value = shares * entry_price
-        position_pct = (position_value / portfolio_value * 100) if portfolio_value > 0 else 0
+        result = risk_manager.calculate_position_size(
+            ticker=ticker,
+            entry_price=entry_price,
+            stop_loss_price=stop_loss_price,
+            portfolio_value=portfolio_value,
+            method=sizing_method,
+            user_id=user_id,
+            db=db if user_id else None
+        )
 
         return {
             "ticker": ticker,
             "entry_price": entry_price,
             "stop_loss_price": stop_loss_price,
             "portfolio_value": portfolio_value,
-            "recommended_shares": shares,
-            "position_value": position_value,
-            "position_pct": round(position_pct, 2),
+            "recommended_shares": result['shares'],
+            "position_value": result['position_value'],
+            "position_pct": round(result['position_pct'], 2),
+            "method": result['method'],
+            "kelly_fraction": result.get('kelly_fraction'),
+            "risk_amount": result.get('risk_amount'),
             "risk_per_share": abs(entry_price - stop_loss_price),
-            "total_risk": shares * abs(entry_price - stop_loss_price)
+            "total_risk": result['shares'] * abs(entry_price - stop_loss_price),
+            "notes": result.get('notes')
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================================================
+# Stop-Loss and Take-Profit Management Endpoints
+# ============================================================================
+
+class PositionLimitsRequest(BaseModel):
+    """Request to set/update position limits."""
+    stop_loss_pct: Optional[float] = Field(None, ge=0, le=100, description="Stop-loss percentage")
+    take_profit_pct: Optional[float] = Field(None, ge=0, le=100, description="Take-profit percentage")
+    trailing_stop_enabled: Optional[bool] = Field(None, description="Enable trailing stop-loss")
+    trailing_stop_distance_pct: Optional[float] = Field(None, ge=0, le=100, description="Trailing stop distance %")
+    take_profit_use_technical: Optional[bool] = Field(None, description="Use technical signals for take-profit")
+
+
+class PositionLimitsResponse(BaseModel):
+    """Response with position limits."""
+    user_id: str
+    ticker: str
+    stop_loss_price: Optional[float]
+    stop_loss_pct: float
+    take_profit_price: Optional[float]
+    take_profit_pct: float
+    trailing_stop_price: Optional[float]
+    trailing_stop_enabled: bool
+    trailing_stop_distance_pct: float
+    highest_price_since_purchase: Optional[float]
+    current_price: Optional[float]
+
+
+@app.post("/portfolio/{user_id}/positions/{ticker}/initialize-limits")
+async def initialize_position_limits(
+    user_id: str,
+    ticker: str,
+    stop_loss_pct: float = 10.0,
+    take_profit_pct: float = 20.0,
+    trailing_stop_enabled: bool = True,
+    trailing_stop_distance_pct: float = 10.0,
+    db: Session = Depends(get_db)
+):
+    """
+    Initialize stop-loss and take-profit limits for a position.
+    Should be called when a new position is opened.
+    """
+    from shared.database.models import Portfolio
+    from decimal import Decimal
+
+    position = db.query(Portfolio).filter(
+        Portfolio.user_id == user_id,
+        Portfolio.ticker == ticker
+    ).first()
+
+    if not position:
+        raise HTTPException(status_code=404, detail=f"Position not found for {ticker}")
+
+    # Initialize limits using position monitor
+    entry_price = float(position.avg_price)
+    risk_manager.position_monitor.initialize_position_limits(
+        position=position,
+        entry_price=entry_price,
+        stop_loss_pct=stop_loss_pct,
+        take_profit_pct=take_profit_pct,
+        trailing_stop_enabled=trailing_stop_enabled,
+        trailing_stop_distance_pct=trailing_stop_distance_pct
+    )
+
+    db.commit()
+    db.refresh(position)
+
+    return {
+        "message": f"Position limits initialized for {ticker}",
+        "user_id": user_id,
+        "ticker": ticker,
+        "entry_price": entry_price,
+        "stop_loss_price": float(position.stop_loss_price),
+        "stop_loss_pct": position.stop_loss_pct,
+        "take_profit_price": float(position.take_profit_price),
+        "take_profit_pct": position.take_profit_pct,
+        "trailing_stop_enabled": position.trailing_stop_enabled,
+        "trailing_stop_distance_pct": position.trailing_stop_distance_pct
+    }
+
+
+@app.put("/portfolio/{user_id}/positions/{ticker}/limits", response_model=PositionLimitsResponse)
+async def update_position_limits(
+    user_id: str,
+    ticker: str,
+    limits: PositionLimitsRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Update stop-loss and take-profit limits for a position.
+    """
+    from shared.database.models import Portfolio
+    from decimal import Decimal
+
+    position = db.query(Portfolio).filter(
+        Portfolio.user_id == user_id,
+        Portfolio.ticker == ticker
+    ).first()
+
+    if not position:
+        raise HTTPException(status_code=404, detail=f"Position not found for {ticker}")
+
+    entry_price = float(position.avg_price)
+
+    # Update stop-loss
+    if limits.stop_loss_pct is not None:
+        position.stop_loss_pct = limits.stop_loss_pct
+        stop_loss_price = entry_price * (1 - limits.stop_loss_pct / 100)
+        position.stop_loss_price = Decimal(str(stop_loss_price))
+
+    # Update take-profit
+    if limits.take_profit_pct is not None:
+        position.take_profit_pct = limits.take_profit_pct
+        take_profit_price = entry_price * (1 + limits.take_profit_pct / 100)
+        position.take_profit_price = Decimal(str(take_profit_price))
+
+    # Update trailing stop settings
+    if limits.trailing_stop_enabled is not None:
+        position.trailing_stop_enabled = limits.trailing_stop_enabled
+
+    if limits.trailing_stop_distance_pct is not None:
+        position.trailing_stop_distance_pct = limits.trailing_stop_distance_pct
+        # Recalculate trailing stop price if highest price exists
+        if position.highest_price_since_purchase:
+            highest = float(position.highest_price_since_purchase)
+            trailing_stop_price = highest * (1 - limits.trailing_stop_distance_pct / 100)
+            position.trailing_stop_price = Decimal(str(trailing_stop_price))
+
+    if limits.take_profit_use_technical is not None:
+        position.take_profit_use_technical = limits.take_profit_use_technical
+
+    position.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(position)
+
+    return PositionLimitsResponse(
+        user_id=position.user_id,
+        ticker=position.ticker,
+        stop_loss_price=float(position.stop_loss_price) if position.stop_loss_price else None,
+        stop_loss_pct=position.stop_loss_pct,
+        take_profit_price=float(position.take_profit_price) if position.take_profit_price else None,
+        take_profit_pct=position.take_profit_pct,
+        trailing_stop_price=float(position.trailing_stop_price) if position.trailing_stop_price else None,
+        trailing_stop_enabled=position.trailing_stop_enabled,
+        trailing_stop_distance_pct=position.trailing_stop_distance_pct,
+        highest_price_since_purchase=float(position.highest_price_since_purchase) if position.highest_price_since_purchase else None,
+        current_price=float(position.current_price) if position.current_price else None
+    )
+
+
+@app.get("/portfolio/{user_id}/positions/{ticker}/limits", response_model=PositionLimitsResponse)
+async def get_position_limits(
+    user_id: str,
+    ticker: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get current stop-loss and take-profit limits for a position.
+    """
+    from shared.database.models import Portfolio
+
+    position = db.query(Portfolio).filter(
+        Portfolio.user_id == user_id,
+        Portfolio.ticker == ticker
+    ).first()
+
+    if not position:
+        raise HTTPException(status_code=404, detail=f"Position not found for {ticker}")
+
+    return PositionLimitsResponse(
+        user_id=position.user_id,
+        ticker=position.ticker,
+        stop_loss_price=float(position.stop_loss_price) if position.stop_loss_price else None,
+        stop_loss_pct=position.stop_loss_pct or 10.0,
+        take_profit_price=float(position.take_profit_price) if position.take_profit_price else None,
+        take_profit_pct=position.take_profit_pct or 20.0,
+        trailing_stop_price=float(position.trailing_stop_price) if position.trailing_stop_price else None,
+        trailing_stop_enabled=position.trailing_stop_enabled if position.trailing_stop_enabled is not None else True,
+        trailing_stop_distance_pct=position.trailing_stop_distance_pct or 10.0,
+        highest_price_since_purchase=float(position.highest_price_since_purchase) if position.highest_price_since_purchase else None,
+        current_price=float(position.current_price) if position.current_price else None
+    )
+
+
+@app.post("/portfolio/{user_id}/monitor")
+async def monitor_positions(user_id: str, db: Session = Depends(get_db)):
+    """
+    Monitor all positions for stop-loss, trailing stop, and take-profit triggers.
+    Returns exit signals for positions that have breached their limits.
+    """
+    result = risk_manager.position_monitor.monitor_positions(user_id, db)
+
+    # Convert exit signals to dict format
+    exit_signals = [
+        {
+            "ticker": signal.ticker,
+            "signal_type": signal.signal_type,
+            "current_price": signal.current_price,
+            "trigger_price": signal.trigger_price,
+            "quantity": signal.quantity,
+            "reason": signal.reason,
+            "urgency": signal.urgency,
+            "technical_signals": signal.technical_signals
+        }
+        for signal in result.exit_signals
+    ]
+
+    return {
+        "user_id": user_id,
+        "positions_checked": result.positions_checked,
+        "exit_signals_count": len(result.exit_signals),
+        "exit_signals": exit_signals,
+        "trailing_stops_updated": result.trailing_stops_updated,
+        "warnings": result.warnings,
+        "emergency_liquidation_triggered": result.emergency_liquidation_triggered
+    }
+
+
+@app.get("/portfolio/{user_id}/all-positions-limits")
+async def get_all_positions_limits(user_id: str, db: Session = Depends(get_db)):
+    """
+    Get stop-loss and take-profit limits for all positions.
+    """
+    from shared.database.models import Portfolio
+
+    positions = db.query(Portfolio).filter(Portfolio.user_id == user_id).all()
+
+    if not positions:
+        return {
+            "user_id": user_id,
+            "count": 0,
+            "positions": []
+        }
+
+    positions_data = []
+    for position in positions:
+        positions_data.append({
+            "ticker": position.ticker,
+            "quantity": position.quantity,
+            "avg_price": float(position.avg_price),
+            "current_price": float(position.current_price) if position.current_price else None,
+            "unrealized_pnl_pct": float(position.unrealized_pnl_pct) if position.unrealized_pnl_pct else 0.0,
+            "stop_loss_price": float(position.stop_loss_price) if position.stop_loss_price else None,
+            "stop_loss_pct": position.stop_loss_pct or 10.0,
+            "take_profit_price": float(position.take_profit_price) if position.take_profit_price else None,
+            "take_profit_pct": position.take_profit_pct or 20.0,
+            "trailing_stop_price": float(position.trailing_stop_price) if position.trailing_stop_price else None,
+            "trailing_stop_enabled": position.trailing_stop_enabled if position.trailing_stop_enabled is not None else True,
+            "highest_price_since_purchase": float(position.highest_price_since_purchase) if position.highest_price_since_purchase else None
+        })
+
+    return {
+        "user_id": user_id,
+        "count": len(positions_data),
+        "positions": positions_data
+    }
 
 
 if __name__ == "__main__":
