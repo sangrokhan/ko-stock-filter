@@ -302,6 +302,77 @@ class Portfolio(Base):
     )
 
 
+class CompositeScore(Base):
+    """Composite investment score model combining value, growth, quality, and momentum scores."""
+    __tablename__ = "composite_scores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(DateTime, nullable=False, index=True, comment="Calculation date")
+
+    # Component Scores (0-100 scale)
+    value_score = Column(Float, comment="Value score based on PER, PBR, dividend yield (0-100)")
+    growth_score = Column(Float, comment="Growth score based on earnings/revenue growth (0-100)")
+    quality_score = Column(Float, comment="Quality score based on ROE, margins, debt (0-100)")
+    momentum_score = Column(Float, comment="Momentum score based on price trend, RSI (0-100)")
+
+    # Overall Composite Score
+    composite_score = Column(Float, nullable=False, index=True, comment="Overall composite score (0-100)")
+    percentile_rank = Column(Float, comment="Percentile rank among all stocks (0-100)")
+
+    # Component Weights (for transparency and customization)
+    weight_value = Column(Float, default=0.25, comment="Weight of value component")
+    weight_growth = Column(Float, default=0.25, comment="Weight of growth component")
+    weight_quality = Column(Float, default=0.25, comment="Weight of quality component")
+    weight_momentum = Column(Float, default=0.25, comment="Weight of momentum component")
+
+    # Value Score Components
+    per_score = Column(Float, comment="PER score component (0-100)")
+    pbr_score = Column(Float, comment="PBR score component (0-100)")
+    dividend_yield_score = Column(Float, comment="Dividend yield score component (0-100)")
+    psr_score = Column(Float, comment="PSR score component (0-100)")
+
+    # Growth Score Components
+    revenue_growth_score = Column(Float, comment="Revenue growth score component (0-100)")
+    earnings_growth_score = Column(Float, comment="Earnings growth score component (0-100)")
+    equity_growth_score = Column(Float, comment="Equity growth score component (0-100)")
+
+    # Quality Score Components
+    roe_score = Column(Float, comment="ROE score component (0-100)")
+    operating_margin_score = Column(Float, comment="Operating margin score component (0-100)")
+    net_margin_score = Column(Float, comment="Net margin score component (0-100)")
+    debt_ratio_score = Column(Float, comment="Debt ratio score component (0-100)")
+    current_ratio_score = Column(Float, comment="Current ratio score component (0-100)")
+
+    # Momentum Score Components
+    rsi_score = Column(Float, comment="RSI score component (0-100)")
+    price_trend_score = Column(Float, comment="Price trend score component (0-100)")
+    macd_score = Column(Float, comment="MACD score component (0-100)")
+    volume_trend_score = Column(Float, comment="Volume trend score component (0-100)")
+
+    # Data Quality Indicators
+    data_quality_score = Column(Float, comment="Data completeness score (0-100)")
+    missing_value_count = Column(Integer, comment="Number of missing values in calculation")
+    total_metric_count = Column(Integer, comment="Total number of metrics evaluated")
+
+    # Metadata
+    calculation_method = Column(String(50), default="standard", comment="Calculation method version")
+    notes = Column(Text, comment="Additional notes or warnings")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    stock = relationship("Stock", backref="composite_scores")
+
+    # Composite indexes
+    __table_args__ = (
+        Index('ix_composite_scores_stock_date', 'stock_id', 'date'),
+        Index('ix_composite_scores_score', 'composite_score'),
+        Index('ix_composite_scores_date_score', 'date', 'composite_score'),
+    )
+
+
 class Watchlist(Base):
     """Watchlist model for tracking stocks of interest."""
     __tablename__ = "watchlist"
