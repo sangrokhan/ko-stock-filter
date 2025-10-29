@@ -1,0 +1,187 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Test Database
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: stock-trading-db-test
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: stock_trading_test
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    tmpfs:
+      - /var/lib/postgresql/data  # Use tmpfs for faster test execution
+
+  # Redis Test Cache
+  redis-test:
+    image: redis:7-alpine
+    container_name: stock-trading-redis-test
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    tmpfs:
+      - /data  # Use tmpfs for faster test execution
+
+  # Data Collector Service (Test)
+  data-collector-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.data_collector
+    container_name: data-collector-test
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/stock_trading_test
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379
+      - LOG_LEVEL=DEBUG
+      - ENVIRONMENT=test
+    ports:
+      - "8101:8000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Indicator Calculator Service (Test)
+  indicator-calculator-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.indicator_calculator
+    container_name: indicator-calculator-test
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/stock_trading_test
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379
+      - LOG_LEVEL=DEBUG
+      - ENVIRONMENT=test
+    ports:
+      - "8102:8000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Stock Screener Service (Test)
+  stock-screener-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.stock_screener
+    container_name: stock-screener-test
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/stock_trading_test
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379
+      - LOG_LEVEL=DEBUG
+      - ENVIRONMENT=test
+    ports:
+      - "8103:8000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Trading Engine Service (Test)
+  trading-engine-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.trading_engine
+    container_name: trading-engine-test
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/stock_trading_test
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379
+      - LOG_LEVEL=DEBUG
+      - ENVIRONMENT=test
+      - PAPER_TRADING_MODE=true
+    ports:
+      - "8104:8000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Risk Manager Service (Test)
+  risk-manager-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.risk_manager
+    container_name: risk-manager-test
+    environment:
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/stock_trading_test
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379
+      - LOG_LEVEL=DEBUG
+      - ENVIRONMENT=test
+    ports:
+      - "8105:8000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  test-db-data:
+  test-redis-data:
