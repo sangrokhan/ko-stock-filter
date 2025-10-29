@@ -1,0 +1,42 @@
+[Unit]
+Description=Stock Trading Redis Cache
+Documentation=https://redis.io/documentation
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=redis
+Group=redis
+
+# Redis configuration
+ExecStart=/usr/bin/redis-server /etc/redis/stock-trading.conf
+ExecStop=/bin/redis-cli shutdown
+PIDFile=/var/run/redis/stock-trading.pid
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+# Resource limits
+LimitNOFILE=65536
+
+# Timeout settings
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ReadWritePaths=/var/lib/redis/stock-trading
+ReadWritePaths=/var/run/redis
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=stock-trading-redis
+
+[Install]
+WantedBy=multi-user.target

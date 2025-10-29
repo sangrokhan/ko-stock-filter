@@ -1,0 +1,459 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: stock-trading-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stock_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stock_password}
+      POSTGRES_DB: ${POSTGRES_DB:-stock_trading}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+      - ./backups:/backups
+    networks:
+      - stock-trading-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stock_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: stock-trading-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - stock-trading-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Database Migration Service
+  db-migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.base
+    container_name: db-migrate
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+    volumes:
+      - ../alembic:/app/alembic
+      - ../alembic.ini:/app/alembic.ini
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stock-trading-network
+    restart: "no"
+
+  # Data Collector Service
+  data-collector:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.data_collector
+    container_name: data-collector
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - KRX_API_KEY=${KRX_API_KEY}
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../logs:/app/logs
+      - ../data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Indicator Calculator Service
+  indicator-calculator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.indicator_calculator
+    container_name: indicator-calculator
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    ports:
+      - "8002:8000"
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      data-collector:
+        condition: service_started
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Stability Calculator Service
+  stability-calculator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.stability_calculator
+    container_name: stability-calculator
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      indicator-calculator:
+        condition: service_started
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Stock Scorer Service
+  stock-scorer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.stock_scorer
+    container_name: stock-scorer
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      stability-calculator:
+        condition: service_started
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Stock Screener Service
+  stock-screener:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.stock_screener
+    container_name: stock-screener
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    ports:
+      - "8003:8000"
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      stock-scorer:
+        condition: service_started
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Watchlist Manager Service
+  watchlist-manager:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.watchlist_manager
+    container_name: watchlist-manager
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Price Monitor Service
+  price-monitor:
+    build:
+      context: ..
+      dockerfile: docker/price_monitor.Dockerfile
+    container_name: price-monitor
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - KRX_API_KEY=${KRX_API_KEY}
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      watchlist-manager:
+        condition: service_started
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Trading Engine Service
+  trading-engine:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.trading_engine
+    container_name: trading-engine
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - KOREAINVESTMENT_API_KEY=${KOREAINVESTMENT_API_KEY}
+      - KOREAINVESTMENT_API_SECRET=${KOREAINVESTMENT_API_SECRET}
+      - PAPER_TRADING=${PAPER_TRADING:-true}
+    ports:
+      - "8004:8000"
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      stock-screener:
+        condition: service_started
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Risk Manager Service
+  risk-manager:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.risk_manager
+    container_name: risk-manager
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_PORTFOLIO_RISK_PCT=${MAX_PORTFOLIO_RISK_PCT:-2.0}
+      - MAX_POSITION_SIZE_PCT=${MAX_POSITION_SIZE_PCT:-10.0}
+    ports:
+      - "8005:8000"
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      trading-engine:
+        condition: service_started
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Orchestrator Service (Master Controller)
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.orchestrator
+    container_name: orchestrator
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATA_COLLECTOR_URL=http://data-collector:8000
+      - INDICATOR_CALCULATOR_URL=http://indicator-calculator:8000
+      - STOCK_SCREENER_URL=http://stock-screener:8000
+      - TRADING_ENGINE_URL=http://trading-engine:8000
+      - RISK_MANAGER_URL=http://risk-manager:8000
+      - TZ=Asia/Seoul
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      data-collector:
+        condition: service_started
+      indicator-calculator:
+        condition: service_started
+      stock-screener:
+        condition: service_started
+      trading-engine:
+        condition: service_started
+      risk-manager:
+        condition: service_started
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  stock-trading-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
