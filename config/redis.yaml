@@ -1,0 +1,11 @@
+# Redis Configuration
+# =============================================================================
+# Configure Redis cache settings
+# Redis host, port, and password should be in .env file
+# =============================================================================
+
+# Redis database number (0-15)
+db: 0
+
+# Maximum connections in pool
+max_connections: 10

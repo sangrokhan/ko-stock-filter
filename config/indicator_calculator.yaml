@@ -1,0 +1,38 @@
+# Indicator Calculator Configuration
+# =============================================================================
+# Configure technical indicator calculation parameters
+# =============================================================================
+
+indicators:
+  # RSI (Relative Strength Index)
+  rsi_period: 14
+  rsi_overbought: 70.0
+  rsi_oversold: 30.0
+
+  # MACD (Moving Average Convergence Divergence)
+  macd_fast_period: 12
+  macd_slow_period: 26
+  macd_signal_period: 9
+
+  # Simple Moving Averages
+  sma_short_period: 20
+  sma_medium_period: 50
+  sma_long_period: 200
+
+  # Exponential Moving Averages
+  ema_short_period: 12
+  ema_medium_period: 26
+
+  # Bollinger Bands
+  bb_period: 20
+  bb_std_dev: 2.0
+
+  # ATR (Average True Range)
+  atr_period: 14
+
+# Caching Settings
+# Enable caching of calculated indicators
+enable_caching: true
+
+# Cache time-to-live in seconds (3600 = 1 hour)
+cache_ttl_seconds: 3600

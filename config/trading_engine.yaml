@@ -1,0 +1,67 @@
+# Trading Engine Configuration
+# =============================================================================
+# Configure signal generation, validation, and order execution
+# Sensitive data (API keys) should be in .env file
+# =============================================================================
+
+# Signal Generator Settings
+signal_generator:
+  # Risk tolerance as percentage of portfolio
+  risk_tolerance: 2.0
+
+  # Maximum position size as percentage of portfolio
+  max_position_size_pct: 10.0
+
+  # Minimum conviction score to generate signal (0-100)
+  min_conviction_score: 60.0
+
+  # Use limit orders instead of market orders
+  use_limit_orders: true
+
+  # Discount percentage for limit orders below market price
+  limit_order_discount_pct: 1.0
+
+  # Conviction score component weights (must sum to 1.0)
+  conviction_weights:
+    weight_value: 0.30      # Value score weight
+    weight_momentum: 0.30   # Momentum score weight
+    weight_volume: 0.20     # Volume score weight
+    weight_quality: 0.20    # Quality score weight
+
+# Signal Validator Settings
+signal_validator:
+  # Maximum concurrent positions allowed
+  max_positions: 20
+
+  # Maximum concentration in single position (%)
+  max_concentration_pct: 30.0
+
+  # Maximum concentration in single sector (%)
+  max_sector_concentration_pct: 40.0
+
+  # Required data freshness in hours
+  require_recent_data_hours: 48
+
+  # Minimum data quality score (0-100)
+  min_data_quality_score: 75.0
+
+# Commission and Fee Settings
+commission:
+  # Commission rate (0.015 = 0.015%)
+  commission_rate: 0.00015
+
+  # Transaction tax rate (0.23%)
+  transaction_tax_rate: 0.0023
+
+  # Agriculture/Fishery special tax (0.15%)
+  agri_fish_tax_rate: 0.0015
+
+  # Minimum commission in KRW
+  min_commission: 0.0
+
+# General Settings
+# Dry run mode (paper trading) - set to false for live trading
+dry_run: true
+
+# Enable trade notifications
+enable_notifications: true

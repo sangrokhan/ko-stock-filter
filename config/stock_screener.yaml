@@ -1,0 +1,54 @@
+# Stock Screener Configuration
+# =============================================================================
+# Configure stock filtering and screening thresholds
+# =============================================================================
+
+thresholds:
+  # Volatility Filter
+  # Maximum annualized volatility percentage
+  max_volatility_pct: 40.0
+
+  # Valuation Filters
+  # Maximum Price-to-Earnings ratio
+  max_per: 50.0
+
+  # Maximum Price-to-Book ratio
+  max_pbr: 5.0
+
+  # PBR threshold for identifying undervalued stocks
+  undervalued_pbr_threshold: 1.0
+
+  # PER multiplier relative to industry average
+  per_industry_avg_multiplier: 1.0
+
+  # Financial Health Filters
+  # Maximum debt ratio percentage
+  max_debt_ratio_pct: 200.0
+
+  # Minimum current ratio (current assets / current liabilities)
+  min_current_ratio: 1.0
+
+  # Liquidity Filters
+  # Minimum average daily trading volume
+  min_avg_volume: 100000
+
+  # Minimum average trading value in KRW
+  min_trading_value_krw: 100000000.0
+
+  # Data Requirements
+  # Minimum days of price history required
+  min_price_history_days: 60
+
+  # Minimum days of volume history required
+  min_volume_history_days: 20
+
+# Sector Filtering
+# Enable sector-based filtering
+enable_sector_filter: true
+
+# List of excluded sector codes (empty = no exclusions)
+excluded_sectors: []
+# Example: ['050', '051']  # Exclude specific sectors
+
+# Maximum number of results to return
+max_results: 100

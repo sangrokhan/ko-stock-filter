@@ -1,0 +1,23 @@
+# Price Monitor Configuration
+# =============================================================================
+# Configure real-time price monitoring and alerts
+# =============================================================================
+
+# Polling interval in seconds (how often to check prices)
+poll_interval_seconds: 60
+
+# Significant price change threshold percentage
+# Alerts triggered when price changes by this amount
+significant_change_threshold_pct: 5.0
+
+# Market Hours (Korea Stock Exchange)
+market_open_hour: 9
+market_close_hour: 15
+
+# Concurrency Settings
+# Maximum concurrent price update operations
+max_concurrent_updates: 10
+
+# Alert Settings
+# Enable price change alerts
+alert_enabled: true
