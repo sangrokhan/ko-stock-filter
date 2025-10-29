@@ -1,0 +1,41 @@
+[Unit]
+Description=Stock Trading PostgreSQL Database
+Documentation=https://www.postgresql.org/docs/
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=postgres
+Group=postgres
+
+# PostgreSQL data directory
+Environment=PGDATA=/var/lib/postgresql/15/main
+
+# PostgreSQL configuration
+ExecStart=/usr/lib/postgresql/15/bin/postgres -D ${PGDATA}
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Timeout settings
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=stock-trading-postgres
+
+[Install]
+WantedBy=multi-user.target

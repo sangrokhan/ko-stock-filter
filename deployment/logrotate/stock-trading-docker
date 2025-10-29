@@ -1,0 +1,72 @@
+# Log rotation configuration for Stock Trading System (Docker)
+# Install to /etc/logrotate.d/stock-trading-docker
+
+# Docker container logs
+/var/lib/docker/containers/*/*.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    maxsize 100M
+    dateext
+    dateformat -%Y%m%d
+}
+
+# Application logs from Docker volumes
+/home/user/ko-stock-filter/logs/*.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0644 root root
+    dateext
+    dateformat -%Y%m%d
+
+    # No postrotate needed for Docker as containers write directly to files
+}
+
+# Critical service logs (longer retention)
+/home/user/ko-stock-filter/logs/trading_engine/*.log
+/home/user/ko-stock-filter/logs/risk_manager/*.log {
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0644 root root
+    dateext
+    dateformat -%Y%m%d
+    maxsize 50M
+}
+
+# PostgreSQL logs from Docker
+/home/user/ko-stock-filter/logs/postgresql/*.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0644 root root
+    dateext
+    dateformat -%Y%m%d
+}
+
+# Redis logs from Docker
+/home/user/ko-stock-filter/logs/redis/*.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0644 root root
+    dateext
+    dateformat -%Y%m%d
+}

@@ -1,0 +1,98 @@
+# Log rotation configuration for Stock Trading System
+# Install to /etc/logrotate.d/stock-trading
+
+# Application logs
+/opt/stock-trading/logs/*.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    create 0640 stocktrading stocktrading
+    dateext
+    dateformat -%Y%m%d
+
+    postrotate
+        # Send SIGHUP to services to reopen log files if using file logging
+        systemctl reload stock-trading-data-collector.service || true
+        systemctl reload stock-trading-indicator-calculator.service || true
+        systemctl reload stock-trading-stock-screener.service || true
+        systemctl reload stock-trading-trading-engine.service || true
+        systemctl reload stock-trading-risk-manager.service || true
+        systemctl reload stock-trading-orchestrator.service || true
+    endscript
+}
+
+# Service-specific logs with higher retention for critical services
+/opt/stock-trading/logs/trading_engine/*.log {
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 stocktrading stocktrading
+    dateext
+    dateformat -%Y%m%d
+
+    postrotate
+        systemctl reload stock-trading-trading-engine.service || true
+    endscript
+}
+
+/opt/stock-trading/logs/risk_manager/*.log {
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 stocktrading stocktrading
+    dateext
+    dateformat -%Y%m%d
+
+    postrotate
+        systemctl reload stock-trading-risk-manager.service || true
+    endscript
+}
+
+# Data collector logs
+/opt/stock-trading/logs/data_collector/*.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 stocktrading stocktrading
+    dateext
+    dateformat -%Y%m%d
+}
+
+# Error logs (keep longer)
+/opt/stock-trading/logs/*error*.log {
+    daily
+    rotate 60
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 stocktrading stocktrading
+    dateext
+    dateformat -%Y%m%d
+}
+
+# Access logs
+/opt/stock-trading/logs/*access*.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 stocktrading stocktrading
+    dateext
+    dateformat -%Y%m%d
+}

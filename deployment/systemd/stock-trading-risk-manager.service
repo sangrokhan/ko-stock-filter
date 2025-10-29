@@ -1,0 +1,47 @@
+[Unit]
+Description=Stock Trading Risk Manager Service
+Documentation=https://github.com/sangrokhan/ko-stock-filter
+After=network.target stock-trading-postgres.service stock-trading-redis.service stock-trading-trading-engine.service
+Requires=stock-trading-postgres.service stock-trading-redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=stocktrading
+Group=stocktrading
+WorkingDirectory=/opt/stock-trading/services/risk_manager
+
+# Environment
+Environment="DATABASE_URL=postgresql://stock_user:stock_password@localhost:5432/stock_trading"
+Environment="REDIS_HOST=localhost"
+Environment="REDIS_PORT=6379"
+Environment="LOG_LEVEL=INFO"
+EnvironmentFile=-/etc/stock-trading/risk-manager.env
+
+# Execution
+ExecStart=/opt/stock-trading/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8005
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# Resource limits
+LimitNOFILE=8192
+LimitNPROC=2048
+
+# Timeout settings
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=stock-risk-manager
+
+[Install]
+WantedBy=multi-user.target
