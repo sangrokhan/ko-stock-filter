@@ -1,0 +1,37 @@
+# Data Collector Configuration
+# =============================================================================
+# Configure data collection scheduling and retry policies
+# =============================================================================
+
+scheduler:
+  # Cron expressions for scheduled jobs
+  # Format: "minute hour day month day_of_week"
+
+  # Market data collection: Weekdays 9am-3pm, every hour
+  market_data_cron: "0 9-15 * * 1-5"
+
+  # Financial data collection: Weekdays at 6pm
+  financial_data_cron: "0 18 * * 1-5"
+
+  # Fundamental data collection: Sunday at midnight
+  fundamental_data_cron: "0 0 * * 0"
+
+  # Retry Settings
+  # Maximum retry attempts on failure
+  max_retries: 3
+
+  # Delay between retries in seconds
+  retry_delay_seconds: 60
+
+  # Timezone for scheduler
+  timezone: "Asia/Seoul"
+
+# General Settings
+# Enable automatic scheduled data collection
+enable_scheduler: true
+
+# Batch size for bulk database operations
+batch_size: 100
+
+# API request timeout in seconds
+request_timeout_seconds: 30

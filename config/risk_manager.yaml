@@ -1,0 +1,58 @@
+# Risk Manager Configuration
+# =============================================================================
+# Configure position sizing, risk limits, and circuit breakers
+# =============================================================================
+
+# Risk Parameters
+risk_parameters:
+  # Maximum position size as percentage of portfolio
+  max_position_size_pct: 10.0
+
+  # Maximum portfolio risk percentage per trade
+  max_portfolio_risk_pct: 2.0
+
+  # Maximum portfolio drawdown before reducing exposure
+  max_drawdown_pct: 20.0
+
+  # Default stop loss percentage
+  stop_loss_pct: 5.0
+
+  # Default take profit percentage
+  take_profit_pct: 10.0
+
+  # Maximum leverage allowed
+  max_leverage: 1.0
+
+  # Emergency liquidation threshold (total loss %)
+  max_total_loss_pct: 28.0
+
+  # Enable trailing stop loss
+  trailing_stop_enabled: false
+
+  # Trailing stop distance percentage
+  trailing_stop_distance_pct: 3.0
+
+# Position Sizing Configuration
+position_sizing:
+  # Position sizing method: fixed_percentage, kelly_criterion, kelly_half,
+  # volatility_adjusted, risk_parity
+  method: kelly_half
+
+  # Fixed percentage for fixed_percentage method
+  fixed_percentage: 5.0
+
+  # Kelly fraction (0.5 = half Kelly for safety)
+  kelly_fraction: 0.5
+
+  # Minimum position size in KRW
+  min_position_size_krw: 100000.0
+
+  # Maximum position size in KRW (null = no limit)
+  max_position_size_krw: null
+
+# Circuit Breaker Settings
+# Enable circuit breaker to halt trading on excessive losses
+enable_circuit_breaker: true
+
+# Circuit breaker threshold (% portfolio loss)
+circuit_breaker_threshold_pct: 15.0

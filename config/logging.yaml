@@ -1,0 +1,19 @@
+# Logging Configuration
+# =============================================================================
+# Configure application logging
+# =============================================================================
+
+# Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+level: INFO
+
+# Log format: json or text
+format: json
+
+# Log file path (null = console only)
+file_path: null
+
+# Maximum log file size in MB
+max_file_size_mb: 100
+
+# Number of backup log files to keep
+backup_count: 5

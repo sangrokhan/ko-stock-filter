@@ -1,0 +1,17 @@
+# Database Configuration
+# =============================================================================
+# Configure database connection pooling and settings
+# Database URL should be in .env file for security
+# =============================================================================
+
+# Connection pool size
+pool_size: 5
+
+# Maximum overflow connections
+max_overflow: 10
+
+# Pool timeout in seconds
+pool_timeout: 30
+
+# Echo SQL queries (for debugging)
+echo: false
