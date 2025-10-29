@@ -1,0 +1,280 @@
+{
+  "dashboard": {
+    "title": "Korean Stock Trading - Trading Metrics",
+    "tags": ["trading", "metrics", "business"],
+    "timezone": "Asia/Seoul",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "1m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Trades Executed",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(trades_executed_total)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Active Positions",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "positions_active",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Portfolio Value",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "portfolio_value_krw",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyKRW"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Portfolio Drawdown",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "portfolio_drawdown_percent",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 10, "color": "yellow"},
+                {"value": 20, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Trade Execution Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+        "targets": [
+          {
+            "expr": "rate(trades_executed_total[5m])",
+            "legendFormat": "{{symbol}} - {{side}} ({{status}})",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 6,
+        "title": "Trade Volume (KRW)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+        "targets": [
+          {
+            "expr": "rate(trade_volume_krw[5m])",
+            "legendFormat": "{{symbol}} - {{side}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "currencyKRW"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 7,
+        "title": "Cumulative P&L (KRW)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+        "targets": [
+          {
+            "expr": "sum(trade_pnl_krw) by (symbol)",
+            "legendFormat": "{{symbol}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "currencyKRW"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 0,
+        "linewidth": 2
+      },
+      {
+        "id": 8,
+        "title": "Signals Generated vs Executed",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+        "targets": [
+          {
+            "expr": "rate(signals_generated_total[5m])",
+            "legendFormat": "Generated: {{signal_type}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(signals_executed_total[5m])",
+            "legendFormat": "Executed: {{signal_type}} ({{status}})",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 9,
+        "title": "Risk Violations",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22},
+        "targets": [
+          {
+            "expr": "rate(risk_violations_total[5m])",
+            "legendFormat": "{{violation_type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1,
+        "alert": {
+          "name": "Risk Violations Detected",
+          "conditions": [
+            {
+              "evaluator": {"type": "gt", "params": [0]},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"type": "sum"},
+              "type": "query"
+            }
+          ]
+        }
+      },
+      {
+        "id": 10,
+        "title": "Value at Risk (95% VaR)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22},
+        "targets": [
+          {
+            "expr": "value_at_risk_krw",
+            "legendFormat": "VaR {{confidence}}%",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "currencyKRW"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 11,
+        "title": "Data Collection Success Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 30},
+        "targets": [
+          {
+            "expr": "rate(stocks_collected_total[5m])",
+            "legendFormat": "Success: {{market}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(data_collection_errors_total[5m])",
+            "legendFormat": "Errors: {{source}} ({{error_type}})",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 12,
+        "title": "Alerts Sent by Type",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 30},
+        "targets": [
+          {
+            "expr": "rate(alerts_sent_total[5m])",
+            "legendFormat": "{{alert_type}} via {{channel}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short"},
+          {"format": "short"}
+        ],
+        "lines": true,
+        "fill": 1,
+        "stack": true
+      }
+    ]
+  }
+}

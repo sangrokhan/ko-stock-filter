@@ -1,0 +1,80 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'stock-trading'
+    environment: 'production'
+
+# Alertmanager configuration (optional - can be added later)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# Load rules once and periodically evaluate them
+# rule_files:
+#   - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Data Collector Service
+  - job_name: 'data-collector'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['data-collector:8000']
+        labels:
+          service: 'data-collector'
+          team: 'platform'
+
+  # Indicator Calculator Service
+  - job_name: 'indicator-calculator'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['indicator-calculator:8000']
+        labels:
+          service: 'indicator-calculator'
+          team: 'platform'
+
+  # Stock Screener Service
+  - job_name: 'stock-screener'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['stock-screener:8000']
+        labels:
+          service: 'stock-screener'
+          team: 'trading'
+
+  # Trading Engine Service
+  - job_name: 'trading-engine'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['trading-engine:8000']
+        labels:
+          service: 'trading-engine'
+          team: 'trading'
+
+  # Risk Manager Service
+  - job_name: 'risk-manager'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['risk-manager:8000']
+        labels:
+          service: 'risk-manager'
+          team: 'risk'
+
+  # PostgreSQL Exporter (if using postgres_exporter)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+  # Redis Exporter (if using redis_exporter)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
