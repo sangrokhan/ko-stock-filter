@@ -1,6 +1,6 @@
 """Initial database schema for Korean stock trading system
 
-Revision ID: 001
+Revision ID: 20251027_1400_001
 Revises:
 Create Date: 2025-10-27 14:00:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '001'
+revision: str = '20251027_1400_001'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

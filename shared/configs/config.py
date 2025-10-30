@@ -64,11 +64,30 @@ class Settings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
+    log_format: str = "text"
     log_file: Optional[str] = None
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    # Price Monitor
+    price_monitor_url: str = "http://localhost:8006"
+
+    # General
+    environment: str = "development"
+
+    # SMTP
+    smtp_port: int = 587
+
+    # Metrics
+    enable_metrics: bool = False
+    metrics_port: int = 9090
+
+    # Trading
+    force_paper_trading: bool = True
+
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore"  # Allow extra fields from .env file
+    }
 
 
 @lru_cache()

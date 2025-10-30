@@ -1,51 +1,52 @@
 # Core dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+setuptools
 
 # Database
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
-alembic==1.12.1
+sqlalchemy
+psycopg2-binary
+alembic
 
 # Cache & Queue
-redis==5.0.1
-celery==5.3.4
+redis
+celery
 
 # Scheduling
-apscheduler==3.10.4
+apscheduler
 
 # Data Processing
-pandas==2.1.3
-numpy==1.26.2
-scipy==1.11.4
-pandas-ta==0.3.14b0
-matplotlib==3.8.2
-seaborn==0.13.0
+pandas-ta
+pandas
+numpy
+scipy
+matplotlib
+seaborn
 
 # API & HTTP
-httpx==0.25.1
-aiohttp==3.9.1
+httpx
+aiohttp
 
 # Utilities
-python-dotenv==1.0.0
-pyyaml==6.0.1
-pytz==2023.3
-python-dateutil==2.8.2
+python-dotenv
+pyyaml
+pytz
+python-dateutil
 
 # Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-pytest-mock==3.12.0
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
 
 # Development
-black==23.11.0
-flake8==6.1.0
-mypy==1.7.1
-isort==5.12.0
+black
+flake8
+mypy
+isort
 
 # Logging & Monitoring
-python-json-logger==2.0.7
-prometheus-client==0.19.0
+python-json-logger
+prometheus-client

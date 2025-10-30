@@ -4,4 +4,4 @@
 -r ../../requirements.txt
 
 # Additional service-specific requirements
-aiohttp==3.9.1
+aiohttp
