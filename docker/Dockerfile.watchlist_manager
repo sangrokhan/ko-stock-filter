@@ -29,6 +29,9 @@ RUN if [ -f /app/services/watchlist_manager/requirements.txt ]; then \
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
+# Set Python path to include /app
+ENV PYTHONPATH=/app:$PYTHONPATH
+
 WORKDIR /app/services/watchlist_manager
 
 CMD ["python", "main.py"]
