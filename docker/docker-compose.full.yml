@@ -1,6 +1,15 @@
 version: '3.8'
 
 services:
+  # Base Image - Built first, used by all other services
+  base:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.base
+    image: stock-trading-base:latest
+    command: ["echo", "Base image built successfully"]
+    restart: "no"
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
@@ -55,9 +64,7 @@ services:
 
   # Database Migration Service
   db-migrate:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.base
+    image: stock-trading-base:latest
     container_name: db-migrate
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
@@ -67,6 +74,8 @@ services:
       - ../alembic.ini:/app/alembic.ini
     command: ["alembic", "upgrade", "head"]
     depends_on:
+      base:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     networks:

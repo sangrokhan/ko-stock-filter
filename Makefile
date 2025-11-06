@@ -83,6 +83,9 @@ run-dev:
 # Docker commands
 docker-build:
 	@echo "Building Docker images..."
+	@echo "Step 1: Building base image..."
+	docker build -t stock-trading-base:latest -f docker/Dockerfile.base .
+	@echo "Step 2: Building service images..."
 	cd docker && docker compose -f docker-compose.full.yml build
 
 docker-up:
