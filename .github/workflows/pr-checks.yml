@@ -1,0 +1,161 @@
+name: PR Quality Checks
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-info:
+    name: PR Information
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: PR Details
+        run: |
+          echo "## Pull Request Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**PR Title:** ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
+          echo "**PR Number:** #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Author:** @${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Base Branch:** ${{ github.event.pull_request.base.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Head Branch:** ${{ github.event.pull_request.head.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  check-tests-modified:
+    name: Check if Tests Modified
+    runs-on: ubuntu-latest
+    outputs:
+      tests_modified: ${{ steps.check.outputs.tests_modified }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for test changes
+        id: check
+        run: |
+          # Get list of changed files
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD)
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Check if any test files were modified
+          if echo "$CHANGED_FILES" | grep -q "tests/.*\.py\|.*_test\.py\|test_.*\.py"; then
+            echo "tests_modified=true" >> $GITHUB_OUTPUT
+            echo "✅ Test files were modified" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "tests_modified=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No test files were modified" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  check-coverage-change:
+    name: Coverage Change Report
+    runs-on: ubuntu-latest
+    needs: [check-tests-modified]
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        continue-on-error: true
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run coverage on PR branch
+        continue-on-error: true
+        run: |
+          pytest tests/ \
+            --ignore=tests/integration/ \
+            --cov=services \
+            --cov=shared \
+            --cov-report=xml \
+            --cov-report=term \
+            -q || true
+
+      - name: Get PR coverage
+        id: pr_coverage
+        continue-on-error: true
+        run: |
+          if [ -f coverage.xml ]; then
+            COVERAGE=$(python -c "
+            import xml.etree.ElementTree as ET
+            try:
+                tree = ET.parse('coverage.xml')
+                root = tree.getroot()
+                line_rate = float(root.attrib.get('line-rate', 0))
+                print(f'{line_rate * 100:.1f}')
+            except:
+                print('0')
+            ") || echo "0"
+            echo "coverage=${COVERAGE:-0}" >> $GITHUB_OUTPUT
+            echo "PR branch coverage: ${COVERAGE:-0}%"
+          else
+            echo "coverage=0" >> $GITHUB_OUTPUT
+          fi
+
+          # Always succeed
+          exit 0
+
+      - name: Coverage Summary
+        run: |
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**PR Branch Coverage:** ${{ steps.pr_coverage.outputs.coverage }}%" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.check-tests-modified.outputs.tests_modified }}" == "false" ]; then
+            echo "⚠️ **Note:** No test files were modified in this PR" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Always succeed
+          exit 0
+
+  test-requirements:
+    name: Check Test Requirements
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if requirements.txt exists
+        run: |
+          if [ ! -f requirements.txt ]; then
+            echo "❌ requirements.txt not found" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "✅ requirements.txt exists" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify test dependencies
+        run: |
+          echo "## Test Dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Checking for required test packages..." >> $GITHUB_STEP_SUMMARY
+
+          REQUIRED_PACKAGES=("pytest" "pytest-cov" "pytest-asyncio" "pytest-mock")
+
+          for package in "${REQUIRED_PACKAGES[@]}"; do
+            if grep -q "$package" requirements.txt || grep -q "$package" pyproject.toml; then
+              echo "✅ $package: Found" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ $package: Not explicitly listed" >> $GITHUB_STEP_SUMMARY
+            fi
+          done

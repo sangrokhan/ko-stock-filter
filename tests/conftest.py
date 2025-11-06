@@ -14,16 +14,14 @@ from shared.database.models import (
 )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def test_db_engine():
-    """Create test database engine."""
+    """Create test database engine with function scope for proper isolation."""
     engine = create_engine("sqlite:///:memory:", echo=False)
-    # Drop all tables first to avoid conflicts
-    Base.metadata.drop_all(bind=engine, checkfirst=True)
-    # Now create all tables
-    Base.metadata.create_all(bind=engine, checkfirst=True)
+    Base.metadata.create_all(bind=engine)
     yield engine
-    Base.metadata.drop_all(bind=engine, checkfirst=True)
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
 
 
 @pytest.fixture(scope="function")
@@ -220,3 +218,81 @@ def mock_pykrx_market_cap():
         '시가총액': [500000000000000],
         '상장주식수': [5969782550]
     }, index=['005930'])
+
+
+@pytest.fixture
+def mock_redis():
+    """Mock Redis client for testing without Redis server."""
+    from unittest.mock import MagicMock
+
+    redis_mock = MagicMock()
+    redis_mock.get.return_value = None
+    redis_mock.set.return_value = True
+    redis_mock.delete.return_value = 1
+    redis_mock.exists.return_value = False
+    redis_mock.expire.return_value = True
+    redis_mock.ping.return_value = True
+
+    return redis_mock
+
+
+@pytest.fixture
+def mock_external_api():
+    """Mock external API responses for testing without network calls."""
+    from unittest.mock import MagicMock
+
+    api_mock = MagicMock()
+
+    # Mock successful API response
+    api_mock.get.return_value.status_code = 200
+    api_mock.get.return_value.json.return_value = {
+        "status": "success",
+        "data": {}
+    }
+
+    api_mock.post.return_value.status_code = 201
+    api_mock.post.return_value.json.return_value = {
+        "status": "created",
+        "id": "test-123"
+    }
+
+    return api_mock
+
+
+@pytest.fixture
+def mock_celery_task():
+    """Mock Celery task for testing without Celery broker."""
+    from unittest.mock import MagicMock
+
+    task_mock = MagicMock()
+    task_mock.delay.return_value.id = "task-123"
+    task_mock.delay.return_value.status = "PENDING"
+    task_mock.apply_async.return_value.id = "task-456"
+    task_mock.apply_async.return_value.get.return_value = {"result": "success"}
+
+    return task_mock
+
+
+@pytest.fixture(autouse=True)
+def mock_environment_variables(monkeypatch):
+    """Set up mock environment variables for testing."""
+    # Database
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("TEST_DATABASE_URL", "sqlite:///:memory:")
+
+    # Redis
+    monkeypatch.setenv("REDIS_HOST", "localhost")
+    monkeypatch.setenv("REDIS_PORT", "6379")
+
+    # API URLs (mock service URLs)
+    monkeypatch.setenv("DATA_COLLECTOR_URL", "http://localhost:8101")
+    monkeypatch.setenv("INDICATOR_CALCULATOR_URL", "http://localhost:8102")
+    monkeypatch.setenv("STOCK_SCREENER_URL", "http://localhost:8103")
+    monkeypatch.setenv("TRADING_ENGINE_URL", "http://localhost:8104")
+
+    # Testing flags
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("PAPER_TRADING_MODE", "true")
+    monkeypatch.setenv("LOG_LEVEL", "ERROR")  # Reduce log noise during tests
+
+    return monkeypatch
