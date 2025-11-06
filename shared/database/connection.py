@@ -67,6 +67,20 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def get_db_session() -> Generator[Session, None, None]:
+    """
+    Get database session (alias for get_db for compatibility).
+
+    Yields:
+        Database session
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 def init_db() -> None:
     """Initialize database tables."""
     from shared.database.models import Base

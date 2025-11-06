@@ -18,12 +18,16 @@ celery
 apscheduler
 
 # Data Processing
-pandas-ta
 pandas
 numpy
 scipy
 matplotlib
 seaborn
+# Note: TA-Lib or pandas-ta can be added separately if needed for technical indicators
+
+# Korean Stock Market Data
+finance-datareader
+pykrx
 
 # API & HTTP
 httpx
@@ -34,6 +38,8 @@ python-dotenv
 pyyaml
 pytz
 python-dateutil
+tabulate
+tenacity
 
 # Testing
 pytest

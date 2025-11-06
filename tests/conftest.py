@@ -14,16 +14,14 @@ from shared.database.models import (
 )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def test_db_engine():
-    """Create test database engine."""
+    """Create test database engine with function scope for proper isolation."""
     engine = create_engine("sqlite:///:memory:", echo=False)
-    # Drop all tables first to avoid conflicts
-    Base.metadata.drop_all(bind=engine, checkfirst=True)
-    # Now create all tables
-    Base.metadata.create_all(bind=engine, checkfirst=True)
+    Base.metadata.create_all(bind=engine)
     yield engine
-    Base.metadata.drop_all(bind=engine, checkfirst=True)
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
 
 
 @pytest.fixture(scope="function")
