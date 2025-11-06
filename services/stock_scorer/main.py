@@ -15,7 +15,6 @@ from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from shared.config.settings import Settings
 from services.stock_scorer.score_service import ScoreService
 
 # Configure logging
@@ -33,8 +32,8 @@ logger = logging.getLogger(__name__)
 
 def get_db_session():
     """Create and return a database session."""
-    settings = Settings()
-    engine = create_engine(settings.get_database_url())
+    from shared.configs.config import settings
+    engine = create_engine(settings.database_url)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return SessionLocal()
 
