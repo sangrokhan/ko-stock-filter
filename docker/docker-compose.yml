@@ -1,6 +1,16 @@
 version: '3.8'
 
 services:
+  # Base Image - All services depend on this
+  base:
+    image: stock-trading-base:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.base
+    # This service only builds the image, doesn't run
+    command: /bin/true
+    restart: "no"
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
@@ -50,6 +60,8 @@ services:
     ports:
       - "8001:8000"
     depends_on:
+      base:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -77,6 +89,8 @@ services:
     ports:
       - "8002:8000"
     depends_on:
+      base:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -98,6 +112,8 @@ services:
     ports:
       - "8003:8000"
     depends_on:
+      base:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -119,6 +135,8 @@ services:
     ports:
       - "8004:8000"
     depends_on:
+      base:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -140,6 +158,8 @@ services:
     ports:
       - "8005:8000"
     depends_on:
+      base:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:

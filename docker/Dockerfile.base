@@ -3,23 +3,29 @@ FROM python:3.12
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (rarely changes - good for caching)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     make \
     libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy shared modules
-COPY shared/ /app/shared/
-
-# Install Python dependencies
+# Copy ONLY requirements.txt first (leverage Docker cache)
 COPY requirements.txt /app/
+
+# Install Python dependencies (this layer will be cached unless requirements.txt changes)
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Now copy shared modules (changes more frequently than dependencies)
+COPY shared/ /app/shared/
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
+
+# Set Python path to include /app
+ENV PYTHONPATH=/app:$PYTHONPATH
 
 EXPOSE 8000
