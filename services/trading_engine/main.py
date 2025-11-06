@@ -27,7 +27,6 @@ from services.trading_engine.signal_generator import TradingSignalGenerator, Tra
 from services.trading_engine.signal_validator import SignalValidator
 from services.trading_engine.order_executor import OrderExecutor
 from services.stock_screener.screening_engine import StockScreeningEngine, ScreeningCriteria
-from shared.configs.config import Settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -67,7 +66,8 @@ class TradingEngineService:
         self.user_id = user_id
         self.db = db
         self.dry_run = dry_run
-        self.settings = Settings()
+        from shared.configs.config import settings
+        self.settings = settings
 
         # Calculate portfolio value
         if portfolio_value is None:

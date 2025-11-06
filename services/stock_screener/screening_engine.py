@@ -12,7 +12,6 @@ from sqlalchemy import func, and_, or_
 from shared.database.models import (
     Stock, StockPrice, TechnicalIndicator, FundamentalIndicator, StabilityScore
 )
-from shared.configs.config import Settings
 
 logger = logging.getLogger(__name__)
 
