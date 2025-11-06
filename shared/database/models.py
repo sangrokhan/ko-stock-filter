@@ -426,7 +426,7 @@ class WatchlistHistory(Base):
     id = Column(Integer, primary_key=True, index=True)
     watchlist_id = Column(Integer, ForeignKey("watchlist.id", ondelete="CASCADE"), nullable=False, index=True)
     stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False, index=True)
-    date = Column(DateTime, nullable=False, index=True, comment="Snapshot date")
+    date = Column(DateTime, nullable=False, comment="Snapshot date")
 
     # Price Information
     price = Column(Numeric(15, 2), comment="Stock price at snapshot")

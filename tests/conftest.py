@@ -32,7 +32,12 @@ def test_db_session(test_db_engine):
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
     session = SessionLocal()
     yield session
+
+    # Clean up all data after each test
     session.rollback()  # Rollback any uncommitted changes
+    for table in reversed(Base.metadata.sorted_tables):
+        session.execute(table.delete())
+    session.commit()
     session.close()
 
 
