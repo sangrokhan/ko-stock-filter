@@ -1,36 +1,19 @@
-FROM python:3.12
+FROM stock-trading-base:latest
 
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    make \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy shared modules
-COPY shared/ /app/shared/
+# Switch to root to copy service code
+USER root
 
 # Copy service code
 COPY services/stability_calculator/ /app/services/stability_calculator/
-
-# Install dependencies
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
 
 # Install service-specific dependencies if they exist
 RUN if [ -f /app/services/stability_calculator/requirements.txt ]; then \
     pip install --no-cache-dir -r /app/services/stability_calculator/requirements.txt; \
     fi
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Set ownership and switch back to appuser
+RUN chown -R appuser:appuser /app
 USER appuser
-
-# Set Python path to include /app
-ENV PYTHONPATH=/app:$PYTHONPATH
 
 WORKDIR /app/services/stability_calculator
 

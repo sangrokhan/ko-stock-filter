@@ -1,33 +1,18 @@
-FROM python:3.12
+FROM stock-trading-base:latest
 
-WORKDIR /app
+# Switch to root to install service-specific dependencies
+USER root
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    make \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy shared modules
-COPY shared/ /app/shared/
+# Copy and install service-specific requirements
+COPY services/indicator_calculator/requirements.txt /app/service_requirements.txt
+RUN pip install --no-cache-dir -r /app/service_requirements.txt
 
 # Copy service code
 COPY services/indicator_calculator/ /app/services/indicator_calculator/
 
-# Install dependencies
-COPY requirements.txt /app/
-COPY services/indicator_calculator/requirements.txt /app/service_requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -r service_requirements.txt
-
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Set ownership and switch back to appuser
+RUN chown -R appuser:appuser /app
 USER appuser
-
-# Set Python path to include /app
-ENV PYTHONPATH=/app:$PYTHONPATH
 
 WORKDIR /app/services/indicator_calculator
 
