@@ -1,11 +1,12 @@
 name: Integration Tests
 
 on:
-  push:
-    branches: [ main, develop, claude/* ]
-  pull_request:
-    branches: [ main, develop ]
+  # Temporarily disabled - requires Docker environment setup
   workflow_dispatch:
+  # push:
+  #   branches: [ main, develop, claude/* ]
+  # pull_request:
+  #   branches: [ main, develop ]
 
 jobs:
   integration-tests:

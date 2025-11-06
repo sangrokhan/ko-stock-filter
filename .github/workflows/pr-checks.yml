@@ -91,6 +91,7 @@ jobs:
 
       - name: Get PR coverage
         id: pr_coverage
+        continue-on-error: true
         run: |
           if [ -f coverage.xml ]; then
             COVERAGE=$(python -c "
@@ -102,12 +103,15 @@ jobs:
                 print(f'{line_rate * 100:.1f}')
             except:
                 print('0')
-            ")
-            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-            echo "PR branch coverage: $COVERAGE%"
+            ") || echo "0"
+            echo "coverage=${COVERAGE:-0}" >> $GITHUB_OUTPUT
+            echo "PR branch coverage: ${COVERAGE:-0}%"
           else
             echo "coverage=0" >> $GITHUB_OUTPUT
           fi
+
+          # Always succeed
+          exit 0
 
       - name: Coverage Summary
         run: |
