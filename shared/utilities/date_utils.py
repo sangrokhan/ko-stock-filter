@@ -2,7 +2,7 @@
 Date and time utility functions.
 """
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
 import pytz
 
 
