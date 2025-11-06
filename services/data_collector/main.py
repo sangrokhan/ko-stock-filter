@@ -8,15 +8,18 @@ Features:
 - Collects fundamental data (PER, PBR, market cap, etc.)
 - Rate limiting and error handling with retry mechanisms
 - Scheduled continuous operation with APScheduler
+- HTTP API for health checks and manual data collection
 """
 import sys
 from pathlib import Path
 import logging
 import signal
 import time
+import threading
 from typing import Optional, Dict
 from datetime import datetime, timedelta
 from pythonjsonlogger import jsonlogger
+import uvicorn
 
 # Add shared directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -25,6 +28,7 @@ from services.data_collector.stock_code_collector import StockCodeCollector
 from services.data_collector.price_collector import PriceCollector
 from services.data_collector.fundamental_collector import FundamentalCollector
 from services.data_collector.scheduler import DataCollectionScheduler
+from services.data_collector.api import app, set_service_instance
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -275,6 +279,17 @@ def signal_handler(signum, frame):
     sys.exit(0)
 
 
+def run_api_server():
+    """Run the FastAPI server in a separate thread."""
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+        access_log=True
+    )
+
+
 def main():
     """Main entry point for the data collector service."""
     # Set up logging
@@ -296,6 +311,15 @@ def main():
         # Start the service
         service.start()
 
+        # Set the service instance for API access
+        set_service_instance(service)
+
+        # Start FastAPI server in a separate thread
+        logger.info("Starting HTTP API server on port 8000...")
+        api_thread = threading.Thread(target=run_api_server, daemon=True)
+        api_thread.start()
+        logger.info("HTTP API server started")
+
         # Check if this is the first run (no data in DB)
         # You might want to run initial collection
         # Uncomment the following line if you want to run initial collection on startup
@@ -303,6 +327,9 @@ def main():
 
         # Keep the service running
         logger.info("Service is running. Press Ctrl+C to stop.")
+        logger.info("API endpoints available at http://0.0.0.0:8000")
+        logger.info("Health check: http://0.0.0.0:8000/health")
+        logger.info("API docs: http://0.0.0.0:8000/docs")
         logger.info("\nScheduled jobs:")
         for job_info in service.get_scheduler_status()['jobs']:
             logger.info(f"  - {job_info['name']}: Next run at {job_info['next_run_time']}")
