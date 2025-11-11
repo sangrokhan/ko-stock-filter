@@ -168,6 +168,33 @@ services:
       - stock-trading-network
     restart: unless-stopped
 
+  # Web Viewer Service
+  web-viewer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web_viewer
+    container_name: web-viewer
+    environment:
+      - DATABASE_URL=postgresql://stock_user:stock_password@postgres:5432/stock_trading
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8080:8080"
+    depends_on:
+      base:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   # Prometheus - Metrics Collection
   prometheus:
     image: prom/prometheus:latest

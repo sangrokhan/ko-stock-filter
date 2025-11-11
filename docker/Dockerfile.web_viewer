@@ -1,0 +1,18 @@
+FROM stock-trading-base:latest
+
+# Switch to root to install service-specific dependencies
+USER root
+
+# Copy service code
+COPY services/web_viewer/ /app/services/web_viewer/
+
+# Set ownership and switch back to appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
+WORKDIR /app/services/web_viewer
+
+# Web viewer runs on port 8080
+EXPOSE 8080
+
+CMD ["python", "main.py"]
