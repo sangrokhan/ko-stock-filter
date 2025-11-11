@@ -217,6 +217,77 @@ cd services/risk_manager
 uvicorn main:app --host 0.0.0.0 --port 8005
 ```
 
+### Data Seeding
+
+Before running the services, you need to seed the database with stock data. The system provides a data seeding script that populates the database with representative Korean stocks and their historical data.
+
+#### Quick Start
+
+Seed database with 1 year of data for 35 representative stocks:
+```bash
+python scripts/seed_stock_data.py
+```
+
+#### Data Seeding Options
+
+Seed with custom time period (e.g., 200 days):
+```bash
+python scripts/seed_stock_data.py --days 200
+```
+
+Seed specific stocks only:
+```bash
+python scripts/seed_stock_data.py --tickers "005930,000660,035420"
+```
+
+Dry run (test without actually seeding):
+```bash
+python scripts/seed_stock_data.py --dry-run
+```
+
+Skip price data collection:
+```bash
+python scripts/seed_stock_data.py --skip-prices
+```
+
+Skip fundamental data collection:
+```bash
+python scripts/seed_stock_data.py --skip-fundamentals
+```
+
+#### Default Stock List
+
+The script seeds 35 representative Korean stocks by default:
+- **KOSPI Large Cap**: Samsung Electronics, SK Hynix, NAVER, LG Chem, Kakao, Hyundai Motor, etc.
+- **KOSPI Mid Cap**: Samsung SDS, Orion, SK, Lotte Chemical, etc.
+- **KOSDAQ Growth**: Ecopro BM, Ecopro, Alteogen, Kakao Games, etc.
+
+See [scripts/README.md](scripts/README.md) for the complete list and more details.
+
+#### Data Requirements
+
+The seeding script ensures sufficient data for technical indicator calculations:
+- **SMA 200**: Requires at least 200 days of price data
+- **MACD**: Requires at least 26 days of price data
+- **RSI**: Requires at least 14 days of price data
+
+Default collection period is 365 days to ensure adequate data for all indicators.
+
+#### Next Steps After Seeding
+
+After seeding the data, run these services to calculate indicators and scores:
+1. **Indicator Calculator Service**: Computes technical indicators (RSI, MACD, moving averages, etc.)
+2. **Stock Scorer Service**: Calculates composite investment scores
+3. **Stability Calculator Service**: Computes stability and risk scores
+
+```bash
+# Example workflow
+python scripts/seed_stock_data.py --days 365
+# Then start the indicator calculator and scorer services
+```
+
+**Note**: Data seeding may take 10-30 minutes depending on network speed and the number of stocks being seeded. The script includes rate limiting to avoid overwhelming external APIs.
+
 ## Configuration
 
 Configuration is managed through environment variables. Copy `shared/configs/.env.example` to `.env` and configure:

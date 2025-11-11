@@ -212,6 +212,95 @@ class StockCodeCollector:
 
         return count
 
+    def collect_single_stock(self, ticker: str) -> bool:
+        """
+        Collect and save a single stock to the database.
+        This method attempts to fetch stock information from all markets.
+
+        Args:
+            ticker: Stock ticker code to collect
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            logger.info(f"Collecting single stock: {ticker}")
+
+            # Try to find the stock in each market
+            markets = ['KOSPI', 'KOSDAQ', 'KONEX']
+            stock_found = False
+
+            for market in markets:
+                try:
+                    df = self.fetch_stock_codes(market)
+
+                    if df is None or df.empty:
+                        continue
+
+                    # Check if ticker exists in this market
+                    ticker_col = 'Code' if 'Code' in df.columns else 'Symbol'
+                    stock_row = df[df[ticker_col] == ticker]
+
+                    if not stock_row.empty:
+                        # Found the stock, save it
+                        with get_db_session() as db:
+                            row = stock_row.iloc[0]
+
+                            # Check if stock already exists
+                            existing_stock = db.query(Stock).filter(Stock.ticker == ticker).first()
+
+                            # Fetch additional details
+                            details = self.fetch_stock_details(ticker)
+
+                            if existing_stock:
+                                # Update existing stock
+                                existing_stock.name_kr = row.get('Name', existing_stock.name_kr)
+                                existing_stock.name_en = row.get('Name', existing_stock.name_en)
+                                existing_stock.market = market
+                                existing_stock.sector = row.get('Sector', existing_stock.sector)
+                                existing_stock.industry = row.get('Industry', existing_stock.industry)
+                                existing_stock.is_active = True
+                                existing_stock.updated_at = datetime.utcnow()
+
+                                if details:
+                                    existing_stock.market_cap = details.get('market_cap')
+                                    existing_stock.listed_shares = details.get('listed_shares')
+
+                                logger.info(f"Updated stock: {ticker} - {existing_stock.name_kr}")
+                            else:
+                                # Create new stock
+                                new_stock = Stock(
+                                    ticker=ticker,
+                                    name_kr=row.get('Name', ''),
+                                    name_en=row.get('Name', ''),
+                                    market=market,
+                                    sector=row.get('Sector', ''),
+                                    industry=row.get('Industry', ''),
+                                    is_active=True,
+                                    listed_date=row.get('ListingDate') if pd.notna(row.get('ListingDate')) else None,
+                                    market_cap=details.get('market_cap') if details else None,
+                                    listed_shares=details.get('listed_shares') if details else None
+                                )
+                                db.add(new_stock)
+                                logger.info(f"Added new stock: {ticker} - {new_stock.name_kr}")
+
+                            db.commit()
+                            stock_found = True
+                            break
+
+                except Exception as e:
+                    logger.debug(f"Error checking {market} for ticker {ticker}: {e}")
+                    continue
+
+            if not stock_found:
+                logger.warning(f"Stock {ticker} not found in any market")
+
+            return stock_found
+
+        except Exception as e:
+            logger.error(f"Error collecting single stock {ticker}: {e}")
+            return False
+
     @log_execution_time
     def update_stock_details(self, ticker: Optional[str] = None) -> int:
         """
