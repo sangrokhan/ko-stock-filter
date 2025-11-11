@@ -409,6 +409,42 @@ services:
       timeout: 10s
       retries: 3
 
+  # Web Viewer Service
+  web-viewer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web_viewer
+    container_name: web-viewer
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_trading}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - stock-trading-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   # Orchestrator Service (Master Controller)
   orchestrator:
     build:
